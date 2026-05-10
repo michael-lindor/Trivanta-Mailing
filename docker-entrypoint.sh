@@ -116,6 +116,11 @@ php artisan queue:work --queue=campaigns,email-validation,default \
     --sleep=3 --tries=3 --timeout=300 --max-jobs=1000 --max-time=3600 &
 echo "[entrypoint] Queue worker started"
 
+# ── Ensure public/index.php exists (app uses root index.php) ──
+if [ ! -f public/index.php ] && [ -f index.php ]; then
+    ln -sfn /app/index.php public/index.php
+fi
+
 # ── Start PHP built-in server ──
 echo "[entrypoint] Starting web server on port ${PORT:-8000}..."
 exec php -S 0.0.0.0:${PORT:-8000} server.php
