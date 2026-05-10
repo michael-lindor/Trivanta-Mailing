@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 
 # ── Ensure writable directories exist ──
 mkdir -p \
@@ -37,23 +36,40 @@ fi
 echo "[entrypoint] Running migrations..."
 
 # Detect existing database without migrations table (e.g. set up via install wizard).
-# If tables exist but the migrations table doesn't, assume all current migrations
-# have already been applied and seed the migrations table accordingly.
-TABLES_EXIST=$(php artisan tinker --execute="echo Schema::hasTable('users') ? '1' : '0';" 2>/dev/null | tail -1)
-MIGRATIONS_EXIST=$(php artisan tinker --execute="echo Schema::hasTable('migrations') ? '1' : '0';" 2>/dev/null | tail -1)
+# Uses raw PHP/PDO to avoid artisan tinker issues.
+php -r "
+    require __DIR__.'/vendor/autoload.php';
+    \$app = require_once __DIR__.'/bootstrap/app.php';
+    \$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
-if [ "$TABLES_EXIST" = "1" ] && [ "$MIGRATIONS_EXIST" = "0" ]; then
-    echo "[entrypoint] Existing database detected without migrations table — installing migration tracking..."
-    php artisan migrate:install --no-interaction
-    # Mark all existing migrations as already run (batch 0) so they are not re-executed
-    for f in database/migrations/*.php; do
-        NAME=$(basename "$f" .php)
-        php artisan tinker --execute="DB::table('migrations')->insert(['migration'=>'$NAME','batch'=>1]);" 2>/dev/null
-    done
-    echo "[entrypoint] Migration tracking seeded for existing tables"
-fi
+    try {
+        \$hasUsers = \Illuminate\Support\Facades\Schema::hasTable('users');
+        \$hasMigrations = \Illuminate\Support\Facades\Schema::hasTable('migrations');
 
-php artisan migrate --force --no-interaction
+        if (\$hasUsers && !\$hasMigrations) {
+            echo \"[entrypoint] Existing DB without migrations table detected\n\";
+
+            // Create the migrations table
+            \Illuminate\Support\Facades\Artisan::call('migrate:install');
+            echo \"[entrypoint] Created migrations table\n\";
+
+            // Seed all current migration files as already run
+            \$files = glob(__DIR__.'/database/migrations/*.php');
+            foreach (\$files as \$file) {
+                \$name = basename(\$file, '.php');
+                \Illuminate\Support\Facades\DB::table('migrations')->insert([
+                    'migration' => \$name,
+                    'batch' => 1,
+                ]);
+            }
+            echo '[entrypoint] Seeded ' . count(\$files) . \" migration records\n\";
+        }
+    } catch (\Throwable \$e) {
+        echo '[entrypoint] DB detection error: ' . \$e->getMessage() . \"\n\";
+    }
+" 2>&1
+
+php artisan migrate --force --no-interaction || echo "[entrypoint] WARNING: migrations failed — continuing startup"
 
 # ── First-time install: create admin + mark installed ──
 INSTALLED_FLAG="storage/app/private/installed.json"
