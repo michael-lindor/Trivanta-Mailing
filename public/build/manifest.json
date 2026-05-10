@@ -1,0 +1,22 @@
+{
+  "resources/css/app.css": {
+    "file": "assets/app-ChqCPVDC.css",
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-8QteWrfI.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true
+  },
+  "resources/js/automation-builder.jsx": {
+    "file": "assets/automation-builder-DYFluzAu.js",
+    "name": "automation-builder",
+    "src": "resources/js/automation-builder.jsx",
+    "isEntry": true,
+    "css": [
+      "assets/automation-builder-Fd0xVSp_.css"
+    ]
+  }
+}
