@@ -48,12 +48,26 @@ echo "[entrypoint] Running migrations..."
 
 # Detect existing database without migrations table (e.g. set up via install wizard).
 # Uses raw PDO — no Laravel bootstrap needed, so no chance of silent failure.
+# Reads DB credentials from system env vars first, then falls back to .env file.
 php -r "
-    \$host = getenv('DB_HOST') ?: '127.0.0.1';
-    \$port = getenv('DB_PORT') ?: '3306';
-    \$db   = getenv('DB_DATABASE') ?: 'mailpurse';
-    \$user = getenv('DB_USERNAME') ?: 'root';
-    \$pass = getenv('DB_PASSWORD') ?: '';
+    // Parse .env file for fallback values
+    \$envVars = [];
+    if (is_file('/app/.env')) {
+        foreach (file('/app/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as \$line) {
+            if (str_starts_with(trim(\$line), '#')) continue;
+            if (strpos(\$line, '=') === false) continue;
+            [\$k, \$v] = explode('=', \$line, 2);
+            \$envVars[trim(\$k)] = trim(trim(\$v), '\"\'');
+        }
+    }
+
+    \$host = getenv('DB_HOST') ?: (\$envVars['DB_HOST'] ?? '127.0.0.1');
+    \$port = getenv('DB_PORT') ?: (\$envVars['DB_PORT'] ?? '3306');
+    \$db   = getenv('DB_DATABASE') ?: (\$envVars['DB_DATABASE'] ?? 'mailpurse');
+    \$user = getenv('DB_USERNAME') ?: (\$envVars['DB_USERNAME'] ?? 'root');
+    \$pass = getenv('DB_PASSWORD') ?: (\$envVars['DB_PASSWORD'] ?? '');
+
+    echo \"[entrypoint] DB connect: \$user@\$host:\$port/\$db\n\";
 
     try {
         \$pdo = new PDO(\"mysql:host=\$host;port=\$port;dbname=\$db;charset=utf8mb4\", \$user, \$pass, [
