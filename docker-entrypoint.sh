@@ -166,6 +166,9 @@ php -r "
 php artisan migrate --force --no-interaction || echo "[entrypoint] WARNING: migrations failed — continuing startup"
 
 # ── First-time install: create admin + mark installed ──
+# Remove stale installed flag from previous broken deploy (one-time fix)
+rm -f storage/app/private/installed.json
+
 INSTALLED_FLAG="storage/app/private/installed.json"
 if [ ! -f "$INSTALLED_FLAG" ]; then
     echo "[entrypoint] First deploy detected — running initial setup..."
