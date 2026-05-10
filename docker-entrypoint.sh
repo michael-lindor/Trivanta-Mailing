@@ -126,13 +126,11 @@ if [ ! -f "$INSTALLED_FLAG" ]; then
     echo "[entrypoint] Marked as installed"
 fi
 
-# ── Cache config/routes/views for production ──
-if [ "$APP_ENV" = "production" ]; then
-    php artisan config:cache --no-interaction 2>/dev/null || true
-    php artisan route:cache --no-interaction 2>/dev/null || true
-    php artisan view:cache --no-interaction 2>/dev/null || true
-    echo "[entrypoint] Production caches warmed"
-fi
+# ── Clear all caches to ensure runtime env vars are used ──
+php artisan config:clear --no-interaction 2>/dev/null || true
+php artisan route:clear --no-interaction 2>/dev/null || true
+php artisan view:clear --no-interaction 2>/dev/null || true
+echo "[entrypoint] Caches cleared"
 
 # ── Start cron daemon (for schedule:run every minute) ──
 echo "* * * * * cd /app && php artisan schedule:run >> /dev/null 2>&1" | crontab -
