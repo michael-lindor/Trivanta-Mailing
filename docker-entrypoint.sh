@@ -35,6 +35,24 @@ fi
 
 # ── Run migrations (idempotent — safe on redeploy) ──
 echo "[entrypoint] Running migrations..."
+
+# Detect existing database without migrations table (e.g. set up via install wizard).
+# If tables exist but the migrations table doesn't, assume all current migrations
+# have already been applied and seed the migrations table accordingly.
+TABLES_EXIST=$(php artisan tinker --execute="echo Schema::hasTable('users') ? '1' : '0';" 2>/dev/null | tail -1)
+MIGRATIONS_EXIST=$(php artisan tinker --execute="echo Schema::hasTable('migrations') ? '1' : '0';" 2>/dev/null | tail -1)
+
+if [ "$TABLES_EXIST" = "1" ] && [ "$MIGRATIONS_EXIST" = "0" ]; then
+    echo "[entrypoint] Existing database detected without migrations table — installing migration tracking..."
+    php artisan migrate:install --no-interaction
+    # Mark all existing migrations as already run (batch 0) so they are not re-executed
+    for f in database/migrations/*.php; do
+        NAME=$(basename "$f" .php)
+        php artisan tinker --execute="DB::table('migrations')->insert(['migration'=>'$NAME','batch'=>1]);" 2>/dev/null
+    done
+    echo "[entrypoint] Migration tracking seeded for existing tables"
+fi
+
 php artisan migrate --force --no-interaction
 
 # ── First-time install: create admin + mark installed ──
