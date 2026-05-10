@@ -81,30 +81,82 @@ php -r "
         \$hasMigrations = in_array('migrations', \$tables);
 
         echo '[entrypoint] DB tables found: ' . count(\$tables) . \"\n\";
+        echo '[entrypoint] Tables: ' . implode(', ', \$tables) . \"\n\";
 
         if (\$hasUsers && !\$hasMigrations) {
             echo \"[entrypoint] Existing DB without migrations table — creating and seeding it\n\";
 
-            // Create the migrations table
-            \$pdo->exec(\"CREATE TABLE migrations (
+            \$pdo->exec(\"CREATE TABLE IF NOT EXISTS migrations (
                 id int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
                 migration varchar(255) NOT NULL,
                 batch int NOT NULL
             ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci\");
 
-            // Seed all current migration files as already run
+            // Only mark migrations as done if their target table actually exists
             \$stmt = \$pdo->prepare('INSERT INTO migrations (migration, batch) VALUES (?, 1)');
             \$count = 0;
             foreach (glob('/app/database/migrations/*.php') as \$file) {
                 \$name = basename(\$file, '.php');
+                // Extract table name from migration filename pattern: *_create_TABLENAME_table
+                if (preg_match('/create_(.+)_table\$/', \$name, \$m)) {
+                    if (!in_array(\$m[1], \$tables)) {
+                        continue; // table doesn't exist, let migrate create it
+                    }
+                }
+                // For non-create migrations (alter, add column, etc), mark as done
+                // only if related table exists
+                if (preg_match('/(?:add|update|modify|alter|drop)_.+(?:to|from|in|on)_(.+)_table\$/', \$name, \$m)) {
+                    if (!in_array(\$m[1], \$tables)) {
+                        continue;
+                    }
+                }
                 \$stmt->execute([\$name]);
                 \$count++;
             }
-            echo \"[entrypoint] Seeded \$count migration records\n\";
-        } elseif (!\$hasUsers && !\$hasMigrations) {
-            echo \"[entrypoint] Fresh database — migrations will create all tables\n\";
+            echo \"[entrypoint] Seeded \$count migration records (skipped missing tables)\n\";
+        } elseif (\$hasMigrations) {
+            // Verify migrations table is accurate — check if it claims tables exist that don't
+            \$recorded = \$pdo->query(\"SELECT migration FROM migrations\")->fetchAll(PDO::FETCH_COLUMN);
+            \$mismatch = false;
+            foreach (\$recorded as \$mig) {
+                if (preg_match('/create_(.+)_table\$/', \$mig, \$m)) {
+                    if (!in_array(\$m[1], \$tables)) {
+                        \$mismatch = true;
+                        break;
+                    }
+                }
+            }
+            if (\$mismatch) {
+                echo \"[entrypoint] Migrations table is stale (records tables that don't exist) — rebuilding\n\";
+                \$pdo->exec(\"DROP TABLE migrations\");
+                \$pdo->exec(\"CREATE TABLE migrations (
+                    id int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    migration varchar(255) NOT NULL,
+                    batch int NOT NULL
+                ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci\");
+                \$stmt = \$pdo->prepare('INSERT INTO migrations (migration, batch) VALUES (?, 1)');
+                \$count = 0;
+                foreach (glob('/app/database/migrations/*.php') as \$file) {
+                    \$name = basename(\$file, '.php');
+                    if (preg_match('/create_(.+)_table\$/', \$name, \$m)) {
+                        if (!in_array(\$m[1], \$tables)) {
+                            continue;
+                        }
+                    }
+                    if (preg_match('/(?:add|update|modify|alter|drop)_.+(?:to|from|in|on)_(.+)_table\$/', \$name, \$m)) {
+                        if (!in_array(\$m[1], \$tables)) {
+                            continue;
+                        }
+                    }
+                    \$stmt->execute([\$name]);
+                    \$count++;
+                }
+                echo \"[entrypoint] Rebuilt migrations table with \$count records\n\";
+            } else {
+                echo \"[entrypoint] Migrations table looks correct — running incremental migrations\n\";
+            }
         } else {
-            echo \"[entrypoint] Migrations table exists — running incremental migrations\n\";
+            echo \"[entrypoint] Fresh database — migrations will create all tables\n\";
         }
     } catch (Throwable \$e) {
         echo '[entrypoint] DB detection error: ' . \$e->getMessage() . \"\n\";
