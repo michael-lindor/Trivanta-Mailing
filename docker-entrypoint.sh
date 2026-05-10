@@ -22,7 +22,9 @@ rm -f bootstrap/cache/*.php
 # ── Copy .env.example → .env if no .env exists yet ──
 if [ ! -f .env ]; then
     cp .env.example .env
-    echo "[entrypoint] Created .env from .env.example"
+    # Force skip install wizard in Docker — setup is handled by this entrypoint
+    sed -i 's/^SKIP_INSTALL_WIZARD=.*/SKIP_INSTALL_WIZARD=true/' .env
+    echo "[entrypoint] Created .env from .env.example (SKIP_INSTALL_WIZARD=true)"
 fi
 
 # ── Generate APP_KEY if not set ──
