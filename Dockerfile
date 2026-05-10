@@ -58,8 +58,6 @@ RUN mkdir -p \
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-HEALTHCHECK NONE
-
 EXPOSE 8000
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
