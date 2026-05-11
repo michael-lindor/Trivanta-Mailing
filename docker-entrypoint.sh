@@ -92,5 +92,6 @@ php artisan queue:work --queue=campaigns,email-validation,default \
 echo "[entrypoint] Queue worker started"
 
 # ── Start PHP built-in server ──
+# Serve from public/ directory with server.php as router so static assets resolve correctly
 echo "[entrypoint] Starting web server on port ${PORT:-8000}..."
-exec php -S 0.0.0.0:${PORT:-8000} server.php
+exec php -S 0.0.0.0:${PORT:-8000} -t public server.php
