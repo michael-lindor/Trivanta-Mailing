@@ -43,15 +43,9 @@ fi
 
 # ── Run migrations ──
 echo "[entrypoint] Running migrations..."
-php artisan migrate --force --no-interaction 2>&1 || {
-    echo "[entrypoint] Migrate failed — attempting fresh migration..."
-    php artisan migrate:fresh --force --no-interaction 2>&1 || echo "[entrypoint] WARNING: migrate:fresh also failed"
-}
+php artisan migrate --force --no-interaction 2>&1 || echo "[entrypoint] WARNING: migrations failed — continuing startup"
 
 # ── First-time install: create admin + mark installed ──
-# Remove stale installed flag from previous broken deploy (one-time fix)
-rm -f storage/app/private/installed.json
-
 INSTALLED_FLAG="storage/app/private/installed.json"
 if [ ! -f "$INSTALLED_FLAG" ]; then
     echo "[entrypoint] First deploy detected — running initial setup..."
