@@ -1419,7 +1419,7 @@ class DeliveryServerService
             'port' => (int) env('MAIL_PORT', 587),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'encryption' => (string) env('MAIL_ENCRYPTION', 'tls'),
+            'encryption' => in_array(env('MAIL_ENCRYPTION'), ['ssl', 'tls', 'none'], true) ? env('MAIL_ENCRYPTION') : 'tls',
             'from_email' => Setting::get('from_email', env('MAIL_FROM_ADDRESS')),
             'from_name' => Setting::get('from_name', env('MAIL_FROM_NAME', env('APP_NAME', 'MailPurse'))),
             'timeout' => (int) env('MAIL_TIMEOUT', 30),

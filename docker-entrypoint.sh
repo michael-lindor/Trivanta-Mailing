@@ -70,6 +70,29 @@ if [ ! -f "$INSTALLED_FLAG" ]; then
 
     php artisan storage:link 2>/dev/null || true
 
+    # Activate Cold Email Outreach addon
+    php -r "
+        require __DIR__.'/vendor/autoload.php';
+        \$app = require_once __DIR__.'/bootstrap/app.php';
+        \$kernel = \$app->make(Illuminate\Contracts\Console\Kernel::class);
+        \$kernel->bootstrap();
+        if (!\App\Models\Addon::where('slug','cold-email-outreach')->exists()) {
+            \App\Models\Addon::create([
+                'slug'=>'cold-email-outreach',
+                'name'=>'Cold Email Outreach',
+                'author'=>'MailPurse',
+                'version'=>'1.0.0',
+                'category'=>'outreach',
+                'description'=>'Run cold email outreach campaigns with sequences, A/B testing, reply detection, and scheduling.',
+                'status'=>'active',
+                'license_key'=>'self-hosted',
+                'installed_at'=>now(),
+                'activated_at'=>now(),
+            ]);
+            echo \"[entrypoint] Cold Email Outreach addon activated\n\";
+        }
+    " 2>&1 || echo "[entrypoint] WARNING: addon activation had errors"
+
     mkdir -p storage/app/private
     echo "{\"installed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%S+00:00)\",\"method\":\"docker\"}" > "$INSTALLED_FLAG"
     echo "[entrypoint] Marked as installed"
