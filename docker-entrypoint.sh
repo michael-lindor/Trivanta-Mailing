@@ -91,7 +91,45 @@ php artisan queue:work --queue=campaigns,email-validation,default \
     --sleep=3 --tries=3 --timeout=300 --max-jobs=1000 --max-time=3600 &
 echo "[entrypoint] Queue worker started"
 
+# ── Create router script for PHP built-in server ──
+cat > /app/docker-router.php <<'ROUTEREOF'
+<?php
+$uri = urldecode(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/');
+
+// Serve static files directly from public/
+if ($uri !== '/' && is_file(__DIR__ . '/public' . $uri)) {
+    $path = __DIR__ . '/public' . $uri;
+    $ext = pathinfo($path, PATHINFO_EXTENSION);
+    $mimeTypes = [
+        'css' => 'text/css',
+        'js' => 'application/javascript',
+        'json' => 'application/json',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'svg' => 'image/svg+xml',
+        'ico' => 'image/x-icon',
+        'woff' => 'font/woff',
+        'woff2' => 'font/woff2',
+        'ttf' => 'font/ttf',
+        'eot' => 'application/vnd.ms-fontobject',
+        'webp' => 'image/webp',
+        'mp4' => 'video/mp4',
+        'webm' => 'video/webm',
+    ];
+    if (isset($mimeTypes[$ext])) {
+        header('Content-Type: ' . $mimeTypes[$ext]);
+    }
+    readfile($path);
+    return true;
+}
+
+// Route everything else through index.php
+chdir(__DIR__);
+require __DIR__ . '/index.php';
+ROUTEREOF
+
 # ── Start PHP built-in server ──
-# Serve from public/ directory with server.php as router so static assets resolve correctly
 echo "[entrypoint] Starting web server on port ${PORT:-8000}..."
-exec php -S 0.0.0.0:${PORT:-8000} -t public server.php
+exec php -S 0.0.0.0:${PORT:-8000} /app/docker-router.php
